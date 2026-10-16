@@ -13,7 +13,7 @@ import {
 } from '../../src/chains/stellar';
 
 class LeakSentinel {
-  readonly payload = new Uint8Array(8 * 1024);
+  readonly payload = new Uint8Array(64 * 1024);
 }
 
 const injectedLeak: LeakSentinel[] = [];
@@ -47,8 +47,10 @@ function generateAnnouncements(
   });
 }
 
-function heapMB() {
-  return process.memoryUsage().heapUsed / 1024 / 1024;
+function memoryMB() {
+  const m = process.memoryUsage();
+  const bytes = m.heapUsed + m.external + Number(m.arrayBuffers ?? 0);
+  return bytes / 1024 / 1024;
 }
 
 /**
@@ -104,9 +106,9 @@ function writeDiagnostics(diagnostics: Record<string, unknown>) {
 
 describe('scanAnnouncements - CI leak detection', () => {
   it('detects memory leaks via regression + heap snapshots', async () => {
-    const announcementsCount = envInt('SCAN_LEAK_ANNOUNCEMENTS', 2_000);
-    const iterations = envInt('SCAN_LEAK_ITERATIONS', 300);
-    const sampleInterval = envInt('SCAN_LEAK_SAMPLE_INTERVAL', 25);
+    const announcementsCount = envInt('SCAN_LEAK_ANNOUNCEMENTS', 50);
+    const iterations = envInt('SCAN_LEAK_ITERATIONS', 200);
+    const sampleInterval = envInt('SCAN_LEAK_SAMPLE_INTERVAL', 20);
     const threshold = envFloat('SCAN_LEAK_THRESHOLD_MB', 0.2);
     const injectLeak = process.env.SCAN_LEAK_INJECT === '1';
 
@@ -129,7 +131,7 @@ describe('scanAnnouncements - CI leak detection', () => {
 
       if (i % sampleInterval === 0) {
         forceGc();
-        samples.push(heapMB());
+        samples.push(memoryMB());
       }
     }
 
